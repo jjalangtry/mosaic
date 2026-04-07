@@ -1,0 +1,7 @@
+Mosaic.xcodeproj/project.xcworkspace/xcuserdata/
+Mosaic.xcodeproj/xcuserdata/
+xcuserdata/
+*.xcuserdatad/
+DerivedData/
+.build/
+.DS_Store

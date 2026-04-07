@@ -1,5 +1,6 @@
 import SwiftUI
 
+// iOS-only settings sheet (macOS uses InspectorView)
 struct SettingsSheet: View {
     @EnvironmentObject var vm: CollageViewModel
     @Environment(\.dismiss) private var dismiss
@@ -19,7 +20,6 @@ struct SettingsSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    // Spacing control
                     settingSection("SPACING") {
                         VStack(spacing: 8) {
                             HStack {
@@ -33,7 +33,6 @@ struct SettingsSheet: View {
                         }
                     }
 
-                    // Corner radius
                     settingSection("CORNER RADIUS") {
                         VStack(spacing: 8) {
                             HStack {
@@ -47,7 +46,20 @@ struct SettingsSheet: View {
                         }
                     }
 
-                    // Background color
+                    settingSection("STACKING") {
+                        Toggle(isOn: $vm.allowOverlap) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Allow overlap")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(MosaicTheme.cream)
+                                Text("Tap a photo to bring it forward.")
+                                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(MosaicTheme.stone.opacity(0.7))
+                            }
+                        }
+                        .tint(MosaicTheme.saffron)
+                    }
+
                     settingSection("BACKGROUND") {
                         LazyVGrid(
                             columns: [GridItem(.adaptive(minimum: 56, maximum: 70), spacing: 10)],
@@ -64,20 +76,13 @@ struct SettingsSheet: View {
                                             .fill(color)
                                             .frame(width: 36, height: 36)
                                             .overlay(
-                                                Circle()
-                                                    .strokeBorder(
-                                                        colorMatches(color)
-                                                        ? MosaicTheme.saffron
-                                                        : MosaicTheme.graphite,
-                                                        lineWidth: colorMatches(color) ? 2 : 1
-                                                    )
+                                                Circle().strokeBorder(
+                                                    colorMatches(color)
+                                                    ? MosaicTheme.saffron
+                                                    : MosaicTheme.graphite,
+                                                    lineWidth: colorMatches(color) ? 2 : 1
+                                                )
                                             )
-                                            .shadow(
-                                                color: colorMatches(color)
-                                                ? MosaicTheme.saffron.opacity(0.3) : .clear,
-                                                radius: 6
-                                            )
-
                                         Text(name)
                                             .font(.system(size: 8, weight: .medium))
                                             .foregroundStyle(MosaicTheme.stone)
@@ -88,12 +93,12 @@ struct SettingsSheet: View {
                         }
                     }
 
-                    // Reset
                     Button {
                         withAnimation {
                             vm.spacing = 6
                             vm.cornerRadius = 4
                             vm.backgroundColor = Color(hex: "0D0D0D")
+                            vm.allowOverlap = false
                         }
                     } label: {
                         Text("Reset to defaults")
@@ -105,9 +110,11 @@ struct SettingsSheet: View {
                 .padding(.vertical, 16)
             }
             .navigationTitle("Settings")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                         .foregroundStyle(MosaicTheme.saffron)
                         .fontWeight(.semibold)
@@ -122,14 +129,12 @@ struct SettingsSheet: View {
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .tracking(3)
                 .foregroundStyle(MosaicTheme.stone)
-
             content()
         }
         .padding(.horizontal, 20)
     }
 
     private func colorMatches(_ color: Color) -> Bool {
-        // Simple comparison via description
-        return color.description == vm.backgroundColor.description
+        color.description == vm.backgroundColor.description
     }
 }

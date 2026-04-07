@@ -2,44 +2,151 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var vm: CollageViewModel
-    @State private var showLayoutPicker = false
-    @State private var showSettings = false
-    @Namespace private var heroNS
 
     var body: some View {
-        ZStack {
-            // Layered background
-            MosaicTheme.ink
-                .ignoresSafeArea()
+        #if os(macOS)
+        macOSLayout
+        #else
+        iOSLayout
+        #endif
+    }
 
-            // Subtle grain texture via noise overlay
-            Canvas { context, size in
-                for _ in 0..<600 {
-                    let x = CGFloat.random(in: 0...size.width)
-                    let y = CGFloat.random(in: 0...size.height)
-                    let opacity = Double.random(in: 0.02...0.06)
-                    context.opacity = opacity
-                    context.fill(
-                        Path(CGRect(x: x, y: y, width: 1, height: 1)),
-                        with: .color(.white)
-                    )
+    // MARK: - macOS: Sidebar + Canvas + Inspector
+
+    #if os(macOS)
+    private var macOSLayout: some View {
+        NavigationSplitView {
+            LayoutSidebarView()
+                .environmentObject(vm)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 280)
+        } detail: {
+            HStack(spacing: 0) {
+                // Canvas area
+                ZStack {
+                    MosaicTheme.ink
+                    noiseOverlay
+
+                    VStack(spacing: 0) {
+                        macOSToolbar
+                        canvasAreaMacOS
+                    }
+                }
+
+                // Inspector
+                if vm.showInspector {
+                    Divider()
+                    InspectorView()
+                        .environmentObject(vm)
+                        .frame(width: 260)
                 }
             }
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
+        }
+        .navigationSplitViewStyle(.balanced)
+    }
 
-            VStack(spacing: 0) {
-                headerBar
-                canvasArea
-                controlsBar
+    private var macOSToolbar: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("MOSAIC")
+                    .font(.system(size: 16, weight: .black))
+                    .tracking(5)
+                    .foregroundStyle(MosaicTheme.cream)
+                Text("collage studio")
+                    .font(.system(size: 10, weight: .medium, design: .serif))
+                    .foregroundStyle(MosaicTheme.stone)
+                    .italic()
+            }
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                // Inspector toggle
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        vm.showInspector.toggle()
+                    }
+                } label: {
+                    Image(systemName: "sidebar.trailing")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(vm.showInspector ? MosaicTheme.saffron : MosaicTheme.stone)
+                        .frame(width: 32, height: 28)
+                        .glassBackground()
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+
+                // Export
+                Button {
+                    vm.exportForInstagram()
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("Export")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundStyle(MosaicTheme.ink)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(MosaicTheme.saffronGradient)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
             }
         }
-        .sheet(isPresented: $showLayoutPicker) {
-            LayoutPickerSheet()
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(MosaicTheme.surface.opacity(0.8))
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(MosaicTheme.graphite.opacity(0.4)).frame(height: 0.5)
+        }
+    }
+
+    private var canvasAreaMacOS: some View {
+        GeometryReader { geo in
+            let padding: CGFloat = 48
+            let maxSide = min(geo.size.width - padding * 2, geo.size.height - padding * 2)
+            let side = max(maxSide, 300)
+
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    CollageCanvasView(canvasSize: side)
+                        .environmentObject(vm)
+                        .frame(width: side, height: side)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .shadow(color: .black.opacity(0.6), radius: 40, y: 12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(MosaicTheme.graphite.opacity(0.4), lineWidth: 0.5)
+                        )
+                    Spacer()
+                }
+                Spacer()
+            }
+        }
+        .sheet(isPresented: $vm.showingExport) {
+            ExportSheet()
                 .environmentObject(vm)
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(MosaicTheme.surface)
+                .frame(minWidth: 440, minHeight: 520)
+        }
+    }
+    #endif
+
+    // MARK: - iOS Layout
+
+    #if os(iOS)
+    private var iOSLayout: some View {
+        ZStack {
+            MosaicTheme.ink.ignoresSafeArea()
+            noiseOverlay.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                iOSHeader
+                canvasAreaiOS
+                iOSControlsBar
+            }
         }
         .sheet(isPresented: $vm.showingExport) {
             ExportSheet()
@@ -48,52 +155,28 @@ struct ContentView: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackground(MosaicTheme.surface)
         }
-        .sheet(isPresented: $showSettings) {
-            SettingsSheet()
-                .environmentObject(vm)
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(MosaicTheme.surface)
-        }
     }
 
-    // MARK: - Header
-
-    private var headerBar: some View {
+    private var iOSHeader: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("MOSAIC")
-                    .font(.system(size: 22, weight: .black, design: .default))
+                    .font(.system(size: 22, weight: .black))
                     .tracking(6)
                     .foregroundStyle(MosaicTheme.cream)
-
                 Text("collage studio")
                     .font(.system(size: 11, weight: .medium, design: .serif))
                     .foregroundStyle(MosaicTheme.stone)
                     .italic()
             }
-
             Spacer()
-
-            Button {
-                showSettings = true
-            } label: {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(MosaicTheme.stone)
-                    .frame(width: 40, height: 40)
-                    .glassBackground()
-                    .clipShape(Circle())
-            }
         }
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .padding(.bottom, 12)
     }
 
-    // MARK: - Canvas
-
-    private var canvasArea: some View {
+    private var canvasAreaiOS: some View {
         GeometryReader { geo in
             let side = min(geo.size.width - 40, geo.size.height - 20)
             VStack {
@@ -113,11 +196,11 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Controls Bar
+    @State private var showSettings = false
+    @State private var showLayoutPicker = false
 
-    private var controlsBar: some View {
+    private var iOSControlsBar: some View {
         VStack(spacing: 12) {
-            // Layout quick-scroll
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     ForEach(CollageLayout.allLayouts) { layout in
@@ -134,9 +217,9 @@ struct ContentView: View {
 
             HStack(spacing: 12) {
                 Button {
-                    showLayoutPicker = true
+                    showSettings = true
                 } label: {
-                    Label("Layouts", systemImage: "square.grid.2x2")
+                    Label("Settings", systemImage: "slider.horizontal.3")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(MosaicTheme.cream)
                         .padding(.horizontal, 16)
@@ -177,10 +260,45 @@ struct ContentView: View {
                 )
                 .ignoresSafeArea(edges: .bottom)
         )
+        .sheet(isPresented: $showSettings) {
+            SettingsSheet()
+                .environmentObject(vm)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(MosaicTheme.surface)
+        }
+    }
+    #endif
+
+    // MARK: - Shared
+
+    private var noiseOverlay: some View {
+        StaticNoiseView()
+            .allowsHitTesting(false)
     }
 }
 
-// MARK: - Layout Chip
+// Renders once and never redraws — prevents animation-driven Canvas churn
+struct StaticNoiseView: View, Equatable {
+    nonisolated static func == (lhs: StaticNoiseView, rhs: StaticNoiseView) -> Bool { true }
+
+    var body: some View {
+        Canvas { context, size in
+            for _ in 0..<600 {
+                let x = CGFloat.random(in: 0...size.width)
+                let y = CGFloat.random(in: 0...size.height)
+                context.opacity = Double.random(in: 0.02...0.06)
+                context.fill(
+                    Path(CGRect(x: x, y: y, width: 1, height: 1)),
+                    with: .color(.white)
+                )
+            }
+        }
+        .drawingGroup()
+    }
+}
+
+// MARK: - Layout Chip (iOS)
 
 struct LayoutChip: View {
     let layout: CollageLayout
@@ -193,7 +311,6 @@ struct LayoutChip: View {
                 Image(systemName: layout.icon)
                     .font(.system(size: 18))
                     .foregroundStyle(isSelected ? MosaicTheme.saffron : MosaicTheme.stone)
-
                 Text("\(layout.photoCount)")
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(isSelected ? MosaicTheme.cream : MosaicTheme.stone.opacity(0.7))

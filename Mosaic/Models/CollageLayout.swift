@@ -11,11 +11,15 @@ struct CollageCell: Identifiable, Equatable {
         let totalW = size.width
         let totalH = size.height
         let inset = spacing / 2
+        let rawWidth = width * totalW - spacing
+        let rawHeight = height * totalH - spacing
+        let clampedWidth = max(rawWidth, 0)
+        let clampedHeight = max(rawHeight, 0)
         return CGRect(
             x: x * totalW + inset,
             y: y * totalH + inset,
-            width: width * totalW - spacing,
-            height: height * totalH - spacing
+            width: clampedWidth,
+            height: clampedHeight
         )
     }
 }

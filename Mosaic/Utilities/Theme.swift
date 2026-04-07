@@ -1,7 +1,22 @@
 import SwiftUI
 
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
+
+// MARK: - Cross-platform image alias
+
+#if os(macOS)
+typealias PlatformImage = NSImage
+#else
+typealias PlatformImage = UIImage
+#endif
+
+// MARK: - Theme
+
 enum MosaicTheme {
-    // Core palette — warm ink & saffron
     static let ink = Color(hex: "0D0D0D")
     static let charcoal = Color(hex: "1C1C1E")
     static let graphite = Color(hex: "2C2C2E")
@@ -11,10 +26,8 @@ enum MosaicTheme {
     static let saffronLight = Color(hex: "F5C563")
     static let ember = Color(hex: "D4654A")
     static let surface = Color(hex: "161618")
-
     static let canvasBackground = Color(hex: "111113")
 
-    // Gradients
     static let saffronGradient = LinearGradient(
         colors: [saffron, Color(hex: "D4943A")],
         startPoint: .topLeading,

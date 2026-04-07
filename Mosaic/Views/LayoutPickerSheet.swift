@@ -22,7 +22,8 @@ struct LayoutPickerSheet: View {
                         ForEach(CollageLayout.allLayouts) { layout in
                             LayoutPreviewCard(
                                 layout: layout,
-                                isSelected: vm.selectedLayout.id == layout.id
+                                isSelected: vm.selectedLayout.id == layout.id,
+                                cells: vm.cells(for: layout)
                             ) {
                                 vm.selectLayout(layout)
                                 dismiss()
@@ -34,9 +35,11 @@ struct LayoutPickerSheet: View {
                 .padding(.vertical, 16)
             }
             .navigationTitle("Layouts")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                         .foregroundStyle(MosaicTheme.saffron)
                         .fontWeight(.semibold)
@@ -49,6 +52,7 @@ struct LayoutPickerSheet: View {
 struct LayoutPreviewCard: View {
     let layout: CollageLayout
     let isSelected: Bool
+    let cells: [CollageCell]
     let action: () -> Void
 
     var body: some View {
@@ -59,7 +63,7 @@ struct LayoutPreviewCard: View {
                     let size = geo.size
                     ZStack {
                         MosaicTheme.ink
-                        ForEach(layout.cells) { cell in
+                        ForEach(cells) { cell in
                             let rect = cell.rect(in: size, spacing: 2)
                             RoundedRectangle(cornerRadius: 2)
                                 .fill(
