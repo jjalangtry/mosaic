@@ -4,4 +4,5 @@ xcuserdata/
 *.xcuserdatad/
 DerivedData/
 .build/
+build/
 .DS_Store

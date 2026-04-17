@@ -3,42 +3,32 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		03E9267334A8C1EF8E286F3E /* CollageViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0CCA7663BFB78950E4DDBA /* CollageViewModel.swift */; };
 		12C3C02418C1B1C5266F4041 /* ExportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A692AA55BA882DE7681C1B96 /* ExportSheet.swift */; };
-		223A91DBC0C9C55C25514FE1 /* PhotoItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADCA909FD893D3BEBDE0B52 /* PhotoItem.swift */; };
 		576A66EF0F2C45F7D5391389 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D39F75AD265C3A8C3771AD9 /* ContentView.swift */; };
 		7CFBA3B0F4649F85FB10B63B /* CollageCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1915E11A5EA7154FE47F6F48 /* CollageCanvasView.swift */; };
-		A71442326587760ACCE8C93F /* InspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 946058F5ED3DE3D7FDD35106 /* InspectorView.swift */; };
-		B46C1EC0F4FFD97D57808E6D /* LayoutSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5EB2B8D2F71E7084C5E481A /* LayoutSidebarView.swift */; };
+		A1E216D947AA02C39BC7BD1A /* SlideDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F7989547829309B89D5F14 /* SlideDocument.swift */; };
 		D831984B2B0CE3C330C56C21 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58572099D278892820664C9 /* Theme.swift */; };
-		E04025F0C6B1E0FC34E3AA75 /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00EB17CE34BBC3B0CF90618C /* SettingsSheet.swift */; };
-		E650BE24940DA14F87A8FEA7 /* LayoutPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE67AB6A693CA89252E6957 /* LayoutPickerSheet.swift */; };
-		F1D75CFB508031EE2819525F /* CollageLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63167A94C962A6BB9993838D /* CollageLayout.swift */; };
 		F9E662E94DC94E1F7E765CA1 /* MosaicApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E7CFACFDFFB631C163EA682 /* MosaicApp.swift */; };
 		FB82FB1E3E7AA2221057E4FF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 125C8E7EB1E1D605CC8F3116 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		00EB17CE34BBC3B0CF90618C /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
 		0E7CFACFDFFB631C163EA682 /* MosaicApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MosaicApp.swift; sourceTree = "<group>"; };
 		125C8E7EB1E1D605CC8F3116 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1915E11A5EA7154FE47F6F48 /* CollageCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollageCanvasView.swift; sourceTree = "<group>"; };
-		46BE0753552E543A7768D0BB /* Mosaic.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mosaic.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		46BE0753552E543A7768D0BB /* Mosaic.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Mosaic.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4D39F75AD265C3A8C3771AD9 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		63167A94C962A6BB9993838D /* CollageLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollageLayout.swift; sourceTree = "<group>"; };
 		81257677E531038EC8AEEB39 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		946058F5ED3DE3D7FDD35106 /* InspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorView.swift; sourceTree = "<group>"; };
-		9DE67AB6A693CA89252E6957 /* LayoutPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutPickerSheet.swift; sourceTree = "<group>"; };
 		A692AA55BA882DE7681C1B96 /* ExportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportSheet.swift; sourceTree = "<group>"; };
 		BC0CCA7663BFB78950E4DDBA /* CollageViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollageViewModel.swift; sourceTree = "<group>"; };
+		D4F7989547829309B89D5F14 /* SlideDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlideDocument.swift; sourceTree = "<group>"; };
 		E58572099D278892820664C9 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
-		E5EB2B8D2F71E7084C5E481A /* LayoutSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutSidebarView.swift; sourceTree = "<group>"; };
 		ECDC979DC5BAB62FEB4617A5 /* Mosaic.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Mosaic.entitlements; sourceTree = "<group>"; };
-		FADCA909FD893D3BEBDE0B52 /* PhotoItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoItem.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -85,8 +75,7 @@
 		4DF60178F043AC9F9F8B92E3 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				63167A94C962A6BB9993838D /* CollageLayout.swift */,
-				FADCA909FD893D3BEBDE0B52 /* PhotoItem.swift */,
+				D4F7989547829309B89D5F14 /* SlideDocument.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -111,10 +100,6 @@
 			children = (
 				1915E11A5EA7154FE47F6F48 /* CollageCanvasView.swift */,
 				A692AA55BA882DE7681C1B96 /* ExportSheet.swift */,
-				946058F5ED3DE3D7FDD35106 /* InspectorView.swift */,
-				9DE67AB6A693CA89252E6957 /* LayoutPickerSheet.swift */,
-				E5EB2B8D2F71E7084C5E481A /* LayoutSidebarView.swift */,
-				00EB17CE34BBC3B0CF90618C /* SettingsSheet.swift */,
 				5D12F125AFA894C9D626C9B1 /* Components */,
 			);
 			path = Views;
@@ -151,6 +136,7 @@
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					CF261331CEC9474675E64FD3 = {
+						DevelopmentTeam = 5JZV7V6Y4Z;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -165,6 +151,7 @@
 			);
 			mainGroup = 93EAD1979F5C8A4751D47B27;
 			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -190,16 +177,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				7CFBA3B0F4649F85FB10B63B /* CollageCanvasView.swift in Sources */,
-				F1D75CFB508031EE2819525F /* CollageLayout.swift in Sources */,
 				03E9267334A8C1EF8E286F3E /* CollageViewModel.swift in Sources */,
 				576A66EF0F2C45F7D5391389 /* ContentView.swift in Sources */,
 				12C3C02418C1B1C5266F4041 /* ExportSheet.swift in Sources */,
-				A71442326587760ACCE8C93F /* InspectorView.swift in Sources */,
-				E650BE24940DA14F87A8FEA7 /* LayoutPickerSheet.swift in Sources */,
-				B46C1EC0F4FFD97D57808E6D /* LayoutSidebarView.swift in Sources */,
 				F9E662E94DC94E1F7E765CA1 /* MosaicApp.swift in Sources */,
-				223A91DBC0C9C55C25514FE1 /* PhotoItem.swift in Sources */,
-				E04025F0C6B1E0FC34E3AA75 /* SettingsSheet.swift in Sources */,
+				A1E216D947AA02C39BC7BD1A /* SlideDocument.swift in Sources */,
 				D831984B2B0CE3C330C56C21 /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -274,15 +256,15 @@
 				CODE_SIGN_ENTITLEMENTS = Mosaic/Mosaic.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 5JZV7V6Y4Z;
 				INFOPLIST_FILE = Mosaic/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mosaic.app;
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.langtry.mosaic;
 				PRODUCT_NAME = Mosaic;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
@@ -368,15 +350,15 @@
 				CODE_SIGN_ENTITLEMENTS = Mosaic/Mosaic.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 5JZV7V6Y4Z;
 				INFOPLIST_FILE = Mosaic/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mosaic.app;
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.langtry.mosaic;
 				PRODUCT_NAME = Mosaic;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";

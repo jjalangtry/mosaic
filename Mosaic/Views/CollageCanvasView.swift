@@ -1,184 +1,221 @@
 import SwiftUI
 import PhotosUI
 
+// MARK: - Canvas
+
+// Renders one slide: background → grid regions (with their photos) → free layers.
+// When grid editing is active, divider + intersection handles sit on top.
 struct CollageCanvasView: View {
     @EnvironmentObject var vm: CollageViewModel
-    let canvasSize: CGFloat
+    let canvasWidth: CGFloat
+    let canvasHeight: CGFloat
+
+    private var slide: Slide { vm.currentSlide }
+    private var size: CGSize { CGSize(width: canvasWidth, height: canvasHeight) }
 
     var body: some View {
         ZStack {
-            vm.backgroundColor
+            // Background — tapping the background (not dividers/cells/layers) deselects.
+            vm.document.backgroundColor
+                .onTapGesture { vm.selection = .none }
 
-            ForEach(vm.activeCells) { cell in
-                CellView(
-                    cell: cell,
-                    canvasSize: canvasSize,
-                    photo: vm.cellPhotos[cell.id],
-                    spacing: vm.spacing,
-                    cornerRadius: vm.cornerRadius,
-                    allowOverlap: vm.allowOverlap,
-                    onTap: {
-                        vm.selectedCellIndex = cell.id
-                        vm.showingPhotoPicker = true
+            // Grid regions
+            ForEach(slide.grid.regions) { region in
+                let rect = slide.grid.rect(for: region, in: size, spacing: vm.document.spacing)
+                GridRegionView(
+                    region: region,
+                    rect: rect,
+                    cornerRadius: vm.document.cornerRadius,
+                    photo: slide.grid.cellPhotos[region.origin],
+                    isSelected: isCellSelected(region.origin),
+                    mergeMode: mergeMode,
+                    onTap: { handleRegionTap(region) },
+                    onPhotoTransform: { offset, scale in
+                        vm.updateCellPhotoTransform(key: region.origin, offset: offset, scale: scale)
                     },
-                    onTransformChanged: { offset, scale in
-                        vm.updatePhotoTransform(
-                            cellIndex: cell.id,
-                            offset: offset,
-                            scale: scale
-                        )
-                    },
-                    onBringToFront: {
-                        vm.bringPhotoToFront(cellIndex: cell.id)
-                    },
-                    onRemove: {
-                        vm.removePhoto(at: cell.id)
-                    }
+                    onRemove: { vm.removeCellPhoto(at: region.origin) },
+                    onUnmerge: { vm.unmerge(at: region.origin) }
                 )
             }
+
+            // Layers — sorted by z, free-floating on top of grid
+            ForEach(slide.layers.sorted(by: { $0.zIndex < $1.zIndex })) { layer in
+                LayerView(
+                    layer: layer,
+                    slideSize: size,
+                    isSelected: isLayerSelected(layer.id),
+                    onTap: { vm.selection = .layer(slide: slide.id, layerId: layer.id); vm.bringLayerForward(layer.id) },
+                    onMutate: { vm.updateLayer(layer.id, mutate: $0) },
+                    onDelete: { vm.deleteLayer(layer.id) }
+                )
+            }
+
+            // Grid edit overlay — always present so the user can always adjust
+            // crop lines. Handles are subtle; they light up on hover/press.
+            if vm.isEditingGrid {
+                GridEditOverlay(
+                    grid: slide.grid,
+                    canvasSize: size,
+                    spacing: vm.document.spacing,
+                    onMoveRowDivider: { index, value in
+                        vm.moveRowDivider(at: index, to: value)
+                    },
+                    onMoveColDivider: { index, value in
+                        vm.moveColDivider(at: index, to: value)
+                    },
+                    onMoveIntersection: { rowIdx, colIdx, x, y in
+                        vm.moveColDivider(at: colIdx, to: x)
+                        vm.moveRowDivider(at: rowIdx, to: y)
+                    }
+                )
+                // Intersection + divider handles — do NOT rasterize this layer.
+            }
         }
-        .overlay {
-            GridHandleOverlay(
-                canvasSize: canvasSize,
-                spacing: vm.spacing,
-                layoutId: vm.selectedLayout.id,
-                grid2x2SplitX: vm.grid2x2SplitX,
-                grid2x2SplitY: vm.grid2x2SplitY,
-                grid3x3SplitX1: vm.grid3x3SplitX1,
-                grid3x3SplitX2: vm.grid3x3SplitX2,
-                grid3x3SplitY1: vm.grid3x3SplitY1,
-                grid3x3SplitY2: vm.grid3x3SplitY2,
-                onGrid2x2Change: { x, y in
-                    vm.updateGrid2x2Splits(x: x, y: y)
-                },
-                onGrid3x3Change: { x1, x2, y1, y2 in
-                    vm.updateGrid3x3Splits(x1: x1, x2: x2, y1: y1, y2: y2)
-                }
-            )
-        }
-        .drawingGroup()
+        .frame(width: canvasWidth, height: canvasHeight)
+        .coordinateSpace(name: "canvas")
         .photosPicker(
             isPresented: $vm.showingPhotoPicker,
             selection: $vm.pickerItems,
-            maxSelectionCount: vm.selectedLayout.photoCount,
+            maxSelectionCount: 1,
             matching: .images
         )
         .onChange(of: vm.pickerItems) {
+            guard !vm.pickerItems.isEmpty else { return }
             Task { await vm.processPickerItems() }
+        }
+    }
+
+    private var mergeMode: Bool {
+        if case .cell = vm.selection { return true } else { return false }
+    }
+
+    private func isCellSelected(_ key: CellKey) -> Bool {
+        if case let .cell(_, k) = vm.selection, k == key { return true }
+        return false
+    }
+
+    private func isLayerSelected(_ id: UUID) -> Bool {
+        if case let .layer(_, lid) = vm.selection, lid == id { return true }
+        return false
+    }
+
+    private func handleRegionTap(_ region: MosaicRegion) {
+        // First tap selects the cell; subsequent tap with another cell selected merges them.
+        if case let .cell(_, existing) = vm.selection, existing != region.origin {
+            if vm.canMerge(a: existing, b: region.origin) {
+                vm.mergeRegion(from: existing, to: region.origin)
+                vm.selection = .none
+                return
+            }
+        }
+        // Empty cell → pick a photo. Filled cell → select it (for merge mode).
+        if vm.currentSlide.grid.cellPhotos[region.origin] == nil {
+            vm.beginPickingPhoto(forCell: region.origin)
+        } else {
+            vm.selection = .cell(slide: vm.currentSlide.id, cellKey: region.origin)
         }
     }
 }
 
-// MARK: - Individual Cell
+// MARK: - Grid region (a cell or a merged block)
 
-struct CellView: View {
-    let cell: CollageCell
-    let canvasSize: CGFloat
-    let photo: PhotoItem?
-    let spacing: CGFloat
+private struct GridRegionView: View {
+    let region: MosaicRegion
+    let rect: CGRect
     let cornerRadius: CGFloat
-    let allowOverlap: Bool
+    let photo: CellPhoto?
+    let isSelected: Bool
+    let mergeMode: Bool
     let onTap: () -> Void
-    let onTransformChanged: (CGSize, CGFloat) -> Void
-    let onBringToFront: () -> Void
+    let onPhotoTransform: (CGSize, CGFloat) -> Void
     let onRemove: () -> Void
+    let onUnmerge: () -> Void
 
     @State private var dragOffset: CGSize = .zero
     @State private var currentScale: CGFloat = 1.0
     @State private var lastScale: CGFloat = 1.0
-    @State private var isHovering = false
-
-    private var cellRect: CGRect {
-        cell.rect(in: CGSize(width: canvasSize, height: canvasSize), spacing: spacing)
-    }
 
     var body: some View {
-        let rect = cellRect
-
         ZStack {
-            if let photo = photo {
-                photoContent(photo, in: rect)
+            if let photo {
+                photoContent(photo)
             } else {
-                emptyCell(in: rect)
+                emptyContent
+            }
+
+            if isSelected {
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .strokeBorder(MosaicTheme.saffron, lineWidth: 2)
             }
         }
         .frame(width: rect.width, height: rect.height)
-        .if(!allowOverlap || photo == nil) { view in
-            view.clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-        }
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         .position(x: rect.midX, y: rect.midY)
-        .zIndex(photo?.zIndex ?? 0)
+        .onTapGesture { onTap() }
+        .overlay(alignment: .topTrailing) {
+            if isSelected {
+                HStack(spacing: 6) {
+                    if region.rowSpan > 1 || region.colSpan > 1 {
+                        actionChip(icon: "rectangle.split.2x1", tint: MosaicTheme.stone, action: onUnmerge)
+                    }
+                    if photo != nil {
+                        actionChip(icon: "xmark", tint: MosaicTheme.ember, action: onRemove)
+                    }
+                }
+                .padding(6)
+                .position(x: rect.width - 24, y: 24)
+            }
+        }
+    }
+
+    private func actionChip(icon: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(MosaicTheme.cream)
+                .frame(width: 26, height: 26)
+                .background(tint.opacity(0.9))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
-    private func photoContent(_ photo: PhotoItem, in rect: CGRect) -> some View {
-        GeometryReader { _ in
-            let imgSize = photo.image.size
-            let imgAspect = imgSize.width / imgSize.height
-            let cellAspect = rect.width / rect.height
+    private func photoContent(_ photo: CellPhoto) -> some View {
+        let imgSize = photo.image.pixelSize
+        let imgAspect = imgSize.width / max(imgSize.height, 1)
+        let cellAspect = rect.width / max(rect.height, 1)
+        let base: CGSize = imgAspect > cellAspect
+            ? CGSize(width: rect.height * imgAspect, height: rect.height)
+            : CGSize(width: rect.width, height: rect.width / imgAspect)
 
-            let baseSize: CGSize = {
-                if imgAspect > cellAspect {
-                    let h = rect.height
-                    return CGSize(width: h * imgAspect, height: h)
-                } else {
-                    let w = rect.width
-                    return CGSize(width: w, height: w / imgAspect)
-                }
-            }()
-
-            #if os(macOS)
-            Image(nsImage: photo.image)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: baseSize.width * currentScale, height: baseSize.height * currentScale)
-                .offset(dragOffset)
-                .frame(width: rect.width, height: rect.height)
-                .if(!allowOverlap) { view in
-                    view.clipped()
-                }
-                .contentShape(Rectangle())
-                .gesture(dragGesture(photo: photo))
-                .gesture(magnifyGesture(photo: photo))
-                .onTapGesture {
-                    onBringToFront()
-                }
-                .onHover { hovering in
-                    isHovering = hovering
-                }
-                .overlay(alignment: .topTrailing) {
-                    removeButton.opacity(isHovering ? 1 : 0)
-                }
-            #else
-            Image(uiImage: photo.image)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: baseSize.width * currentScale, height: baseSize.height * currentScale)
-                .offset(dragOffset)
-                .frame(width: rect.width, height: rect.height)
-                .if(!allowOverlap) { view in
-                    view.clipped()
-                }
-                .contentShape(Rectangle())
-                .gesture(dragGesture(photo: photo))
-                .gesture(magnifyGesture(photo: photo))
-                .overlay(alignment: .topTrailing) {
-                    removeButton.opacity(0.5)
-                }
-                .onTapGesture {
-                    onBringToFront()
-                }
-            #endif
-        }
-        .onAppear {
-            dragOffset = photo.offset
-            currentScale = photo.scale
-            lastScale = photo.scale
-        }
+        #if os(macOS)
+        Image(nsImage: photo.image)
+            .resizable()
+            .interpolation(.high)
+            .aspectRatio(contentMode: .fill)
+            .frame(width: base.width * currentScale, height: base.height * currentScale)
+            .offset(dragOffset)
+            .frame(width: rect.width, height: rect.height)
+            .contentShape(Rectangle())
+            .gesture(photoPanGesture(photo))
+            .simultaneousGesture(photoMagnifyGesture(photo))
+        #else
+        Image(uiImage: photo.image)
+            .resizable()
+            .interpolation(.high)
+            .aspectRatio(contentMode: .fill)
+            .frame(width: base.width * currentScale, height: base.height * currentScale)
+            .offset(dragOffset)
+            .frame(width: rect.width, height: rect.height)
+            .contentShape(Rectangle())
+            .gesture(photoPanGesture(photo))
+            .simultaneousGesture(photoMagnifyGesture(photo))
+        #endif
     }
 
-    private func dragGesture(photo: PhotoItem) -> some Gesture {
-        DragGesture()
+    private func photoPanGesture(_ photo: CellPhoto) -> some Gesture {
+        DragGesture(minimumDistance: 2)
             .onChanged { value in
                 dragOffset = CGSize(
                     width: photo.offset.width + value.translation.width,
@@ -190,229 +227,311 @@ struct CellView: View {
                     width: photo.offset.width + value.translation.width,
                     height: photo.offset.height + value.translation.height
                 )
-                onTransformChanged(newOffset, currentScale)
+                onPhotoTransform(newOffset, currentScale)
             }
     }
 
-    private func magnifyGesture(photo: PhotoItem) -> some Gesture {
+    private func photoMagnifyGesture(_ photo: CellPhoto) -> some Gesture {
         MagnificationGesture()
-            .onChanged { value in
-                currentScale = lastScale * value
-            }
+            .onChanged { value in currentScale = lastScale * value }
             .onEnded { value in
-                lastScale = lastScale * value
+                lastScale = max(0.5, min(6, lastScale * value))
                 currentScale = lastScale
-                onTransformChanged(photo.offset, currentScale)
+                onPhotoTransform(dragOffset, currentScale)
             }
     }
 
-    private var removeButton: some View {
-        Button {
-            onRemove()
-        } label: {
-            Image(systemName: "xmark")
-                .font(.system(size: 9, weight: .black))
-                .foregroundStyle(.white)
-                .frame(width: 22, height: 22)
-                .background(Color.black.opacity(0.6))
-                .clipShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .padding(6)
-        .transition(.opacity)
-        .animation(.easeInOut(duration: 0.15), value: isHovering)
-    }
-
-    @ViewBuilder
-    private func emptyCell(in rect: CGRect) -> some View {
+    private var emptyContent: some View {
         ZStack {
             MosaicTheme.charcoal
-
-            CrosshatchView()
-
+            DotField()
             VStack(spacing: 6) {
-                Image(systemName: "plus")
+                Image(systemName: mergeMode ? "rectangle.connected.to.line.below" : "plus")
                     .font(.system(size: 20, weight: .light))
-                    .foregroundStyle(MosaicTheme.stone.opacity(0.6))
-                Text("TAP")
-                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+                    .foregroundStyle(MosaicTheme.stone.opacity(0.7))
+                Text(mergeMode ? "TAP TO MERGE" : "TAP")
+                    .font(.system(size: 8, weight: .bold))
                     .tracking(3)
-                    .foregroundStyle(MosaicTheme.stone.opacity(0.4))
+                    .foregroundStyle(MosaicTheme.stone.opacity(0.5))
             }
         }
-        .contentShape(Rectangle())
-        .onTapGesture { onTap() }
-        #if os(macOS)
-        .onHover { hovering in
-            if hovering {
-                NSCursor.pointingHand.push()
-            } else {
-                NSCursor.pop()
-            }
-        }
-        #endif
     }
 }
 
-// MARK: - Grid Handles
+// MARK: - Grid edit overlay (dividers + intersection handles)
 
-struct GridHandleOverlay: View {
-    let canvasSize: CGFloat
+// This is where the critical drag fix lives. Each divider/handle is a view
+// whose FRAME defines its hit region, and its gesture is attached BEFORE
+// `.position(...)` — otherwise .position() expands the view to fill its
+// parent and every handle claims the full canvas as its hit area (the old bug).
+private struct GridEditOverlay: View {
+    let grid: MosaicGrid
+    let canvasSize: CGSize
     let spacing: CGFloat
-    let layoutId: String
-    let grid2x2SplitX: CGFloat
-    let grid2x2SplitY: CGFloat
-    let grid3x3SplitX1: CGFloat
-    let grid3x3SplitX2: CGFloat
-    let grid3x3SplitY1: CGFloat
-    let grid3x3SplitY2: CGFloat
-    let onGrid2x2Change: (CGFloat, CGFloat) -> Void
-    let onGrid3x3Change: (CGFloat, CGFloat, CGFloat, CGFloat) -> Void
+    let onMoveRowDivider: (Int, CGFloat) -> Void
+    let onMoveColDivider: (Int, CGFloat) -> Void
+    let onMoveIntersection: (Int, Int, CGFloat, CGFloat) -> Void
+
+    private let hitThickness: CGFloat = 28   // finger-friendly
+    private let visibleThickness: CGFloat = 1.5
+    private let intersectionSize: CGFloat = 30
 
     var body: some View {
-        if layoutId == CollageLayout.grid2x2.id {
-            handleLayer(
-                verticals: [grid2x2SplitX],
-                horizontals: [grid2x2SplitY],
-                onUpdate: { xs, ys in
-                    guard let x = xs.first, let y = ys.first else { return }
-                    onGrid2x2Change(x, y)
-                }
-            )
-        } else if layoutId == CollageLayout.grid3x3.id {
-            handleLayer(
-                verticals: [grid3x3SplitX1, grid3x3SplitX2],
-                horizontals: [grid3x3SplitY1, grid3x3SplitY2],
-                onUpdate: { xs, ys in
-                    guard xs.count == 2, ys.count == 2 else { return }
-                    onGrid3x3Change(xs[0], xs[1], ys[0], ys[1])
-                }
-            )
-        }
-    }
+        ZStack(alignment: .topLeading) {
+            // Column dividers — segmented to skip merged rows
+            ForEach(Array(grid.colDividers.enumerated()), id: \.offset) { colIdx, value in
+                ForEach(Array(grid.colDividerSegments(colIdx: colIdx).enumerated()), id: \.offset) { _, seg in
+                    let (yStartFrac, yEndFrac) = grid.yRange(startRow: seg.0, endRow: seg.1)
+                    let segLen = (yEndFrac - yStartFrac) * canvasSize.height
+                    let segMidY = (yStartFrac + yEndFrac) / 2 * canvasSize.height
 
-    private func handleLayer(
-        verticals: [CGFloat],
-        horizontals: [CGFloat],
-        onUpdate: @escaping ([CGFloat], [CGFloat]) -> Void
-    ) -> some View {
-        ZStack {
-            ForEach(Array(verticals.enumerated()), id: \.offset) { index, value in
-                let xPos = value * canvasSize
-                GridHandleLine(
-                    isVertical: true,
-                    length: canvasSize,
-                    thickness: max(2, spacing / 2),
-                    position: xPos
-                )
-                .gesture(
-                    DragGesture()
-                        .onChanged { gesture in
-                            var updated = verticals
-                            updated[index] = gesture.location.x / canvasSize
-                            onUpdate(updated, horizontals)
-                        }
-                )
+                    DividerHandle(axis: .vertical,
+                                  length: segLen,
+                                  hitThickness: hitThickness,
+                                  visibleThickness: visibleThickness)
+                        .highPriorityGesture(
+                            DragGesture(minimumDistance: 0, coordinateSpace: .named("canvas"))
+                                .onChanged { v in
+                                    onMoveColDivider(colIdx, v.location.x / max(canvasSize.width, 1))
+                                }
+                        )
+                        .position(x: value * canvasSize.width, y: segMidY)
+                }
             }
 
-            ForEach(Array(horizontals.enumerated()), id: \.offset) { index, value in
-                let yPos = value * canvasSize
-                GridHandleLine(
-                    isVertical: false,
-                    length: canvasSize,
-                    thickness: max(2, spacing / 2),
-                    position: yPos
-                )
-                .gesture(
-                    DragGesture()
-                        .onChanged { gesture in
-                            var updated = horizontals
-                            updated[index] = gesture.location.y / canvasSize
-                            onUpdate(verticals, updated)
-                        }
-                )
+            // Row dividers — segmented to skip merged columns
+            ForEach(Array(grid.rowDividers.enumerated()), id: \.offset) { rowIdx, value in
+                ForEach(Array(grid.rowDividerSegments(rowIdx: rowIdx).enumerated()), id: \.offset) { _, seg in
+                    let (xStartFrac, xEndFrac) = grid.xRange(startCol: seg.0, endCol: seg.1)
+                    let segLen = (xEndFrac - xStartFrac) * canvasSize.width
+                    let segMidX = (xStartFrac + xEndFrac) / 2 * canvasSize.width
+
+                    DividerHandle(axis: .horizontal,
+                                  length: segLen,
+                                  hitThickness: hitThickness,
+                                  visibleThickness: visibleThickness)
+                        .highPriorityGesture(
+                            DragGesture(minimumDistance: 0, coordinateSpace: .named("canvas"))
+                                .onChanged { v in
+                                    onMoveRowDivider(rowIdx, v.location.y / max(canvasSize.height, 1))
+                                }
+                        )
+                        .position(x: segMidX, y: value * canvasSize.height)
+                }
+            }
+
+            // Intersection handles — only at real four-way crossings
+            ForEach(Array(grid.rowDividers.enumerated()), id: \.offset) { rowIdx, rowVal in
+                ForEach(Array(grid.colDividers.enumerated()), id: \.offset) { colIdx, colVal in
+                    if grid.intersectionValid(rowIdx: rowIdx, colIdx: colIdx) {
+                        IntersectionHandle(size: intersectionSize)
+                            .highPriorityGesture(
+                                DragGesture(minimumDistance: 0, coordinateSpace: .named("canvas"))
+                                    .onChanged { v in
+                                        let nx = v.location.x / max(canvasSize.width, 1)
+                                        let ny = v.location.y / max(canvasSize.height, 1)
+                                        onMoveIntersection(rowIdx, colIdx, nx, ny)
+                                    }
+                            )
+                            .position(x: colVal * canvasSize.width, y: rowVal * canvasSize.height)
+                    }
+                }
             }
         }
-        .frame(width: canvasSize, height: canvasSize)
+        .frame(width: canvasSize.width, height: canvasSize.height)
         .allowsHitTesting(true)
     }
 }
 
-struct GridHandleLine: View {
-    let isVertical: Bool
+private struct DividerHandle: View {
+    enum Axis { case horizontal, vertical }
+    let axis: Axis
     let length: CGFloat
-    let thickness: CGFloat
-    let position: CGFloat
+    let hitThickness: CGFloat
+    let visibleThickness: CGFloat
 
     var body: some View {
-        let hitSize: CGFloat = max(18, thickness + 12)
         ZStack {
+            // Visible line centered inside the hit frame
             Rectangle()
-                .fill(Color.clear)
+                .fill(MosaicTheme.saffron.opacity(0.45))
                 .frame(
-                    width: isVertical ? hitSize : length,
-                    height: isVertical ? length : hitSize
-                )
-            Rectangle()
-                .fill(MosaicTheme.saffron.opacity(0.6))
-                .frame(
-                    width: isVertical ? thickness : length,
-                    height: isVertical ? length : thickness
+                    width: axis == .vertical ? visibleThickness : length,
+                    height: axis == .vertical ? length : visibleThickness
                 )
         }
-        .position(
-            x: isVertical ? position : length / 2,
-            y: isVertical ? length / 2 : position
+        .frame(
+            width: axis == .vertical ? hitThickness : length,
+            height: axis == .vertical ? length : hitThickness
         )
         .contentShape(Rectangle())
-        .accessibilityHidden(true)
     }
 }
 
-extension View {
-    @ViewBuilder
-    func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
-        if condition {
-            transform(self)
-        } else {
-            self
-        }
-    }
-}
-
-// MARK: - Static Crosshatch (renders once, no animation churn)
-
-struct CrosshatchView: View, Equatable {
-    nonisolated static func == (lhs: CrosshatchView, rhs: CrosshatchView) -> Bool { true }
+private struct IntersectionHandle: View {
+    let size: CGFloat
 
     var body: some View {
-        Canvas { context, size in
-            let step: CGFloat = 12
-            context.opacity = 0.08
-            for x in stride(from: 0, to: size.width, by: step) {
-                var path = Path()
-                path.move(to: CGPoint(x: x, y: 0))
-                path.addLine(to: CGPoint(x: x, y: size.height))
-                context.stroke(path, with: .color(MosaicTheme.stone), lineWidth: 0.5)
-            }
-            for y in stride(from: 0, to: size.height, by: step) {
-                var path = Path()
-                path.move(to: CGPoint(x: 0, y: y))
-                path.addLine(to: CGPoint(x: size.width, y: y))
-                context.stroke(path, with: .color(MosaicTheme.stone), lineWidth: 0.5)
+        ZStack {
+            Circle()
+                .fill(MosaicTheme.ink)
+                .frame(width: 14, height: 14)
+                .overlay(
+                    Circle().strokeBorder(MosaicTheme.saffron, lineWidth: 2)
+                )
+                .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+        }
+        .frame(width: size, height: size)
+        .contentShape(Circle())
+    }
+}
+
+// MARK: - Layer view (free-floating photo stacked above the grid)
+
+private struct LayerView: View {
+    let layer: PhotoLayer
+    let slideSize: CGSize
+    let isSelected: Bool
+    let onTap: () -> Void
+    let onMutate: (@escaping (inout PhotoLayer) -> Void) -> Void
+    let onDelete: () -> Void
+
+    // Mid-gesture transient state
+    @State private var dragDelta: CGSize = .zero
+    @State private var scaleDelta: CGFloat = 1.0
+    @State private var rotationDelta: Angle = .zero
+
+    private var rect: CGRect { layer.rect(in: slideSize) }
+
+    var body: some View {
+        let r = rect
+        let w = r.width * scaleDelta
+        let h = r.height * scaleDelta
+
+        ZStack {
+            #if os(macOS)
+            Image(nsImage: layer.image)
+                .resizable()
+                .interpolation(.high)
+                .aspectRatio(contentMode: .fill)
+            #else
+            Image(uiImage: layer.image)
+                .resizable()
+                .interpolation(.high)
+                .aspectRatio(contentMode: .fill)
+            #endif
+        }
+        .frame(width: w, height: h)
+        .clipShape(RoundedRectangle(cornerRadius: layer.cornerRadius))
+        .opacity(layer.opacity)
+        .shadow(color: .black.opacity(isSelected ? 0.35 : 0.2), radius: isSelected ? 8 : 4, y: 2)
+        .overlay {
+            if isSelected {
+                RoundedRectangle(cornerRadius: layer.cornerRadius)
+                    .strokeBorder(MosaicTheme.saffron, lineWidth: 2)
             }
         }
-        .drawingGroup()
+        .rotationEffect(layer.rotation + rotationDelta)
+        .contentShape(Rectangle())
+        .position(x: r.midX + dragDelta.width, y: r.midY + dragDelta.height)
+        .gesture(dragGesture)
+        .simultaneousGesture(pinchGesture)
+        .simultaneousGesture(rotationGesture)
+        .onTapGesture { onTap() }
+        .overlay {
+            if isSelected {
+                selectionControls
+                    .position(x: r.midX + dragDelta.width, y: r.midY + dragDelta.height)
+            }
+        }
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 2)
+            .onChanged { v in
+                dragDelta = v.translation
+            }
+            .onEnded { v in
+                onMutate { l in
+                    l.centerX = min(max((rect.midX + v.translation.width) / slideSize.width, -0.2), 1.2)
+                    l.centerY = min(max((rect.midY + v.translation.height) / slideSize.height, -0.2), 1.2)
+                }
+                dragDelta = .zero
+            }
+    }
+
+    private var pinchGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { v in scaleDelta = v }
+            .onEnded { v in
+                onMutate { l in
+                    l.widthFrac = min(max(l.widthFrac * v, 0.05), 2.0)
+                }
+                scaleDelta = 1.0
+            }
+    }
+
+    private var rotationGesture: some Gesture {
+        RotationGesture()
+            .onChanged { v in rotationDelta = v }
+            .onEnded { v in
+                onMutate { l in l.rotation = l.rotation + v }
+                rotationDelta = .zero
+            }
+    }
+
+    private var selectionControls: some View {
+        // Four small handles; delete button top-right inside bounds
+        let w = rect.width * scaleDelta
+        let h = rect.height * scaleDelta
+        return ZStack {
+            // Corner handles (visual only — gestures above do resize via pinch)
+            ForEach(0..<4, id: \.self) { i in
+                let dx: CGFloat = (i % 2 == 0 ? -1 : 1) * w / 2
+                let dy: CGFloat = (i < 2 ? -1 : 1) * h / 2
+                Circle()
+                    .fill(MosaicTheme.saffron)
+                    .frame(width: 10, height: 10)
+                    .overlay(Circle().strokeBorder(MosaicTheme.ink, lineWidth: 1))
+                    .offset(x: dx, y: dy)
+            }
+
+            Button(action: onDelete) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(MosaicTheme.cream)
+                    .frame(width: 24, height: 24)
+                    .background(MosaicTheme.ember)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .offset(x: w / 2 + 14, y: -h / 2 - 14)
+        }
+        .rotationEffect(layer.rotation + rotationDelta)
+        .allowsHitTesting(true)
     }
 }
 
-// MARK: - NSImage size extension
+// MARK: - Decorative empty-cell pattern
 
-#if os(macOS)
-extension NSImage {
-    var size: CGSize {
-        guard let rep = representations.first else { return .zero }
-        return CGSize(width: rep.pixelsWide, height: rep.pixelsHigh)
+private struct DotField: View, Equatable {
+    nonisolated static func == (lhs: DotField, rhs: DotField) -> Bool { true }
+    var body: some View {
+        Canvas { ctx, size in
+            let step: CGFloat = 16
+            ctx.opacity = 0.1
+            var r: CGFloat = step / 2
+            while r < size.height {
+                var c: CGFloat = step / 2
+                while c < size.width {
+                    ctx.fill(
+                        Path(ellipseIn: CGRect(x: c - 1, y: r - 1, width: 2, height: 2)),
+                        with: .color(MosaicTheme.stone)
+                    )
+                    c += step
+                }
+                r += step
+            }
+        }
     }
 }
-#endif

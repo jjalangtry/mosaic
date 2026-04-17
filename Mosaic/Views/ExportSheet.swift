@@ -3,121 +3,114 @@ import SwiftUI
 struct ExportSheet: View {
     @EnvironmentObject var vm: CollageViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var animateIn = false
+    @State private var previewIndex: Int = 0
 
     var body: some View {
-        VStack(spacing: 20) {
-            // Header
+        VStack(spacing: 18) {
             HStack {
                 Text("EXPORT")
-                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .font(.system(size: 11, weight: .bold))
                     .tracking(3)
                     .foregroundStyle(MosaicTheme.stone)
-
                 Spacer()
-
                 Button("Done") { dismiss() }
                     .foregroundStyle(MosaicTheme.saffron)
                     .fontWeight(.semibold)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
 
-            if let image = vm.exportedImage {
-                // Preview
+            if !vm.exportedSlides.isEmpty {
+                TabView(selection: $previewIndex) {
+                    ForEach(Array(vm.exportedSlides.enumerated()), id: \.offset) { idx, img in
+                        slidePreview(img, index: idx, total: vm.exportedSlides.count)
+                            .tag(idx)
+                            .padding(.horizontal, 24)
+                    }
+                }
+                #if os(iOS)
+                .tabViewStyle(.page(indexDisplayMode: .always))
+                #endif
+                .frame(maxHeight: .infinity)
+
+                HStack(spacing: 14) {
+                    infoBadge("COUNT", "\(vm.exportedSlides.count)")
+                    dividerV
+                    infoBadge("SIZE", sizeLabel(vm.document.aspect.exportSize))
+                    dividerV
+                    infoBadge("FORMAT", "PNG")
+                }
+                .padding(.horizontal, 20)
+            }
+
+            Button {
+                vm.saveAllToPhotos()
+            } label: {
+                HStack(spacing: 8) {
+                    if vm.isSaving {
+                        ProgressView().controlSize(.small)
+                    } else if vm.saveSuccess {
+                        Image(systemName: "checkmark").font(.system(size: 13, weight: .bold))
+                    } else {
+                        Image(systemName: "square.and.arrow.down").font(.system(size: 13, weight: .bold))
+                    }
+                    #if os(iOS)
+                    Text(vm.saveSuccess ? "Saved!" : "Save all to Photos")
+                        .font(.system(size: 14, weight: .bold))
+                    #else
+                    Text(vm.saveSuccess ? "Saved!" : "Save all as PNG…")
+                        .font(.system(size: 13, weight: .bold))
+                    #endif
+                }
+                .foregroundStyle(MosaicTheme.ink)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(vm.saveSuccess ? AnyShapeStyle(Color.green) : AnyShapeStyle(MosaicTheme.saffronGradient))
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(vm.isSaving)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
+        }
+        .background(MosaicTheme.surface)
+        .animation(.spring(response: 0.3), value: vm.saveSuccess)
+    }
+
+    private func slidePreview(_ image: PlatformImage, index: Int, total: Int) -> some View {
+        VStack(spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(MosaicTheme.ink)
                 #if os(macOS)
                 Image(nsImage: image)
                     .resizable()
-                    .aspectRatio(1, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .shadow(color: .black.opacity(0.4), radius: 20, y: 8)
-                    .padding(.horizontal, 48)
-                    .scaleEffect(animateIn ? 1 : 0.92)
-                    .opacity(animateIn ? 1 : 0)
+                    .aspectRatio(vm.document.aspect.ratio, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
                 #else
                 Image(uiImage: image)
                     .resizable()
-                    .aspectRatio(1, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .shadow(color: .black.opacity(0.4), radius: 20, y: 8)
-                    .padding(.horizontal, 48)
-                    .scaleEffect(animateIn ? 1 : 0.92)
-                    .opacity(animateIn ? 1 : 0)
+                    .aspectRatio(vm.document.aspect.ratio, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
                 #endif
-
-                // Info badges
-                HStack(spacing: 20) {
-                    infoBadge(label: "SIZE", value: "1080×1080")
-                    divider
-                    infoBadge(label: "FORMAT", value: "PNG")
-                    divider
-                    infoBadge(label: "READY", value: "Instagram")
-                }
-                .opacity(animateIn ? 1 : 0)
-
-                Spacer()
-
-                // Actions
-                VStack(spacing: 10) {
-                    Button {
-                        vm.saveToPhotos()
-                    } label: {
-                        HStack(spacing: 8) {
-                            if vm.isSaving {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    #if os(macOS)
-                                    .tint(MosaicTheme.ink)
-                                    #endif
-                            } else if vm.saveSuccess {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .transition(.scale.combined(with: .opacity))
-                            } else {
-                                Image(systemName: "square.and.arrow.down")
-                                    .font(.system(size: 14, weight: .bold))
-                            }
-
-                            #if os(macOS)
-                            Text(vm.saveSuccess ? "Saved!" : "Save as PNG…")
-                                .font(.system(size: 13, weight: .bold))
-                            #else
-                            Text(vm.saveSuccess ? "Saved!" : "Save to Photos")
-                                .font(.system(size: 15, weight: .bold))
-                            #endif
-                        }
-                        .foregroundStyle(MosaicTheme.ink)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(
-                            vm.saveSuccess
-                            ? AnyShapeStyle(Color.green)
-                            : AnyShapeStyle(MosaicTheme.saffronGradient)
-                        )
-                        .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(vm.isSaving)
-                    .animation(.spring(response: 0.3), value: vm.saveSuccess)
-                }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 20)
-                .opacity(animateIn ? 1 : 0)
-                .offset(y: animateIn ? 0 : 16)
             }
-        }
-        .background(MosaicTheme.surface)
-        .onAppear {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.1)) {
-                animateIn = true
-            }
+            .shadow(color: .black.opacity(0.4), radius: 16, y: 6)
+
+            Text("\(index + 1) of \(total)")
+                .font(.system(size: 9, weight: .bold))
+                .tracking(2)
+                .foregroundStyle(MosaicTheme.stone)
         }
     }
 
-    private func infoBadge(label: String, value: String) -> some View {
+    private func sizeLabel(_ s: CGSize) -> String {
+        "\(Int(s.width))×\(Int(s.height))"
+    }
+
+    private func infoBadge(_ label: String, _ value: String) -> some View {
         VStack(spacing: 2) {
             Text(label)
-                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                .font(.system(size: 8, weight: .bold))
                 .tracking(2)
                 .foregroundStyle(MosaicTheme.stone)
             Text(value)
@@ -126,9 +119,7 @@ struct ExportSheet: View {
         }
     }
 
-    private var divider: some View {
-        Rectangle()
-            .fill(MosaicTheme.graphite)
-            .frame(width: 1, height: 24)
+    private var dividerV: some View {
+        Rectangle().fill(MosaicTheme.graphite).frame(width: 1, height: 20)
     }
 }
