@@ -218,11 +218,12 @@ struct MosaicMerge: Equatable {
     var colSpan: Int
 }
 
-struct MosaicRegion: Equatable, Identifiable {
+struct MosaicRegion: Hashable, Identifiable {
     let origin: CellKey
     let rowSpan: Int
     let colSpan: Int
-    var id: String { "\(origin.row)-\(origin.col)-\(rowSpan)x\(colSpan)" }
+    // Identity is the value itself - CellKey is Hashable, so synthesis covers it.
+    var id: Self { self }
 }
 
 struct CellKey: Hashable, Codable, Equatable {

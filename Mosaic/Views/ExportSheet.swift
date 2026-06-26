@@ -1,12 +1,14 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ExportSheet: View {
-    @EnvironmentObject var vm: CollageViewModel
+    @Environment(CollageViewModel.self) private var vm
     @Environment(\.dismiss) private var dismiss
     @State private var previewIndex: Int = 0
 
     var body: some View {
-        VStack(spacing: 18) {
+        @Bindable var vm = vm
+        return VStack(spacing: 18) {
             HStack {
                 Text("EXPORT")
                     .font(.system(size: 11, weight: .bold))
@@ -75,6 +77,16 @@ struct ExportSheet: View {
         }
         .background(MosaicTheme.surface)
         .animation(.spring(response: 0.3), value: vm.saveSuccess)
+        #if os(macOS)
+        .fileImporter(
+            isPresented: $vm.showingFolderPicker,
+            allowedContentTypes: [.folder]
+        ) { result in
+            if case let .success(url) = result {
+                vm.writeSlides(to: url)
+            }
+        }
+        #endif
     }
 
     private func slidePreview(_ image: PlatformImage, index: Int, total: Int) -> some View {

@@ -2,12 +2,12 @@ import SwiftUI
 
 @main
 struct MosaicApp: App {
-    @StateObject private var collageVM = CollageViewModel()
+    @State private var collageVM = CollageViewModel()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(collageVM)
+                .environment(collageVM)
                 .preferredColorScheme(.dark)
             #if os(macOS)
                 .frame(minWidth: 960, minHeight: 680)

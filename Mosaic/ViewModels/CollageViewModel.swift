@@ -23,28 +23,30 @@ enum PhotoPickerTarget: Equatable {
 }
 
 @MainActor
-final class CollageViewModel: ObservableObject {
+@Observable
+final class CollageViewModel {
 
     // Document
-    @Published var document = SlideDocument()
-    @Published var currentSlideIndex: Int = 0
+    var document = SlideDocument()
+    var currentSlideIndex: Int = 0
 
     // Selection & tool state
-    @Published var selection: SlideSelection = .none
-    @Published var isEditingGrid: Bool = true      // when true, dividers are draggable
-    @Published var showInspector: Bool = true      // macOS
-    @Published var activePanel: ToolPanel = .none
+    var selection: SlideSelection = .none
+    var isEditingGrid: Bool = true      // when true, dividers are draggable
+    var showInspector: Bool = true      // macOS
+    var activePanel: ToolPanel = .none
 
     // Photo picker
-    @Published var showingPhotoPicker = false
-    @Published var pickerItems: [PhotosPickerItem] = []
+    var showingPhotoPicker = false
+    var pickerItems: [PhotosPickerItem] = []
     var pendingPickerTarget: PhotoPickerTarget?
 
     // Export
-    @Published var showingExport = false
-    @Published var exportedSlides: [PlatformImage] = []
-    @Published var isSaving = false
-    @Published var saveSuccess = false
+    var showingExport = false
+    var showingFolderPicker = false      // macOS folder export
+    var exportedSlides: [PlatformImage] = []
+    var isSaving = false
+    var saveSuccess = false
 
     enum ToolPanel: Equatable {
         case none
@@ -481,64 +483,61 @@ final class CollageViewModel: ObservableObject {
 
     func saveAllToPhotos() {
         guard !exportedSlides.isEmpty else { return }
-        isSaving = true
         #if os(macOS)
-        saveAllToDiskMacOS()
+        // Present the native SwiftUI folder picker; writing happens in writeSlides(to:).
+        showingFolderPicker = true
         #else
-        saveAllToPhotosIOS()
+        isSaving = true
+        Task { await saveAllToPhotosIOS() }
         #endif
     }
 
     #if os(macOS)
-    private func saveAllToDiskMacOS() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.title = "Save Slides"
-        panel.message = "Choose a folder — each slide is saved as a numbered PNG"
-        panel.begin { [weak self] response in
-            guard let self else { return }
-            Task { @MainActor in
-                if response == .OK, let url = panel.url {
-                    for (i, img) in self.exportedSlides.enumerated() {
-                        if let tiff = img.tiffRepresentation,
-                           let bitmap = NSBitmapImageRep(data: tiff),
-                           let png = bitmap.representation(using: .png, properties: [:]) {
-                            let file = url.appendingPathComponent(String(format: "mosaic-%02d.png", i + 1))
-                            try? png.write(to: file)
-                        }
-                    }
-                    self.saveSuccess = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.saveSuccess = false }
-                }
-                self.isSaving = false
-            }
+    /// Writes each slide as a numbered PNG into the user-chosen folder.
+    /// Invoked by the SwiftUI `.fileImporter` folder picker in ExportSheet.
+    func writeSlides(to folderURL: URL) {
+        let didAccess = folderURL.startAccessingSecurityScopedResource()
+        defer { if didAccess { folderURL.stopAccessingSecurityScopedResource() } }
+
+        isSaving = true
+        for (i, img) in exportedSlides.enumerated() {
+            guard let tiff = img.tiffRepresentation,
+                  let bitmap = NSBitmapImageRep(data: tiff),
+                  let png = bitmap.representation(using: .png, properties: [:]) else { continue }
+            let file = folderURL.appendingPathComponent(String(format: "mosaic-%02d.png", i + 1))
+            try? png.write(to: file)
+        }
+        isSaving = false
+        saveSuccess = true
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            saveSuccess = false
         }
     }
     #endif
 
     #if os(iOS)
-    private func saveAllToPhotosIOS() {
-        PHPhotoLibrary.requestAuthorization(for: .addOnly) { [weak self] status in
-            guard let self else { return }
-            guard status == .authorized || status == .limited else {
-                DispatchQueue.main.async { self.isSaving = false }
-                return
-            }
-            PHPhotoLibrary.shared().performChanges {
-                for img in self.exportedSlides {
+    private func saveAllToPhotosIOS() async {
+        let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+        guard status == .authorized || status == .limited else {
+            isSaving = false
+            return
+        }
+
+        // Capture images locally so the change block doesn't reach into main-actor state.
+        let slides = exportedSlides
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                for img in slides {
                     PHAssetChangeRequest.creationRequestForAsset(from: img)
                 }
-            } completionHandler: { success, _ in
-                DispatchQueue.main.async {
-                    self.isSaving = false
-                    if success {
-                        self.saveSuccess = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.saveSuccess = false }
-                    }
-                }
             }
+            isSaving = false
+            saveSuccess = true
+            try? await Task.sleep(for: .seconds(2))
+            saveSuccess = false
+        } catch {
+            isSaving = false
         }
     }
     #endif

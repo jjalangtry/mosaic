@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @EnvironmentObject var vm: CollageViewModel
+    @Environment(CollageViewModel.self) private var vm
 
     var body: some View {
         #if os(macOS)
@@ -15,7 +15,8 @@ struct ContentView: View {
 
     #if os(iOS)
     private var iOSLayout: some View {
-        ZStack {
+        @Bindable var vm = vm
+        return ZStack {
             MosaicTheme.ink.ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -48,7 +49,7 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
         .sheet(isPresented: $vm.showingExport) {
             ExportSheet()
-                .environmentObject(vm)
+                .environment(vm)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(.clear)
@@ -62,7 +63,8 @@ struct ContentView: View {
 
     #if os(macOS)
     private var macOSLayout: some View {
-        HStack(spacing: 0) {
+        @Bindable var vm = vm
+        return HStack(spacing: 0) {
             // Left rail — slides
             VStack(spacing: 0) {
                 Text("SLIDES")
@@ -106,7 +108,7 @@ struct ContentView: View {
         }
         .sheet(isPresented: $vm.showingExport) {
             ExportSheet()
-                .environmentObject(vm)
+                .environment(vm)
                 .frame(minWidth: 520, minHeight: 560)
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: vm.activePanel)
@@ -118,7 +120,7 @@ struct ContentView: View {
 // MARK: - Top bar — aspect picker is the hero, glass everywhere
 
 private struct TopBar: View {
-    @EnvironmentObject var vm: CollageViewModel
+    @Environment(CollageViewModel.self) private var vm
     @Namespace private var aspectGlass
 
     var body: some View {
@@ -196,7 +198,7 @@ private struct TopBar: View {
 // MARK: - Canvas stage
 
 private struct CanvasStage: View {
-    @EnvironmentObject var vm: CollageViewModel
+    @Environment(CollageViewModel.self) private var vm
 
     var body: some View {
         GeometryReader { geo in
@@ -218,7 +220,7 @@ private struct CanvasStage: View {
                 HStack {
                     Spacer(minLength: 0)
                     CollageCanvasView(canvasWidth: w, canvasHeight: h)
-                        .environmentObject(vm)
+                        .environment(vm)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                         .shadow(color: .black.opacity(0.45), radius: 24, y: 8)
                         .overlay(
@@ -237,7 +239,7 @@ private struct CanvasStage: View {
 // MARK: - Tool palette — true Liquid Glass
 
 private struct ToolPalette: View {
-    @EnvironmentObject var vm: CollageViewModel
+    @Environment(CollageViewModel.self) private var vm
     @Namespace private var paletteGlass
 
     var body: some View {
@@ -289,7 +291,7 @@ private struct ToolPalette: View {
 // MARK: - Active panel host
 
 private struct ToolPanelHost: View {
-    @EnvironmentObject var vm: CollageViewModel
+    @Environment(CollageViewModel.self) private var vm
 
     var body: some View {
         Group {
@@ -313,7 +315,7 @@ private struct ToolPanelHost: View {
 // MARK: - Layout panel (grid presets + rows/cols steppers + merge hint)
 
 private struct LayoutPanel: View {
-    @EnvironmentObject var vm: CollageViewModel
+    @Environment(CollageViewModel.self) private var vm
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -390,7 +392,7 @@ private struct LayoutPanel: View {
 // MARK: - Layers panel
 
 private struct LayersPanel: View {
-    @EnvironmentObject var vm: CollageViewModel
+    @Environment(CollageViewModel.self) private var vm
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -493,7 +495,7 @@ private struct LayersPanel: View {
 }
 
 private struct LayerTile: View {
-    @EnvironmentObject var vm: CollageViewModel
+    @Environment(CollageViewModel.self) private var vm
     let layer: PhotoLayer
 
     private var isSelected: Bool {
@@ -527,7 +529,7 @@ private struct LayerTile: View {
 // MARK: - Slides panel
 
 private struct SlidesPanel: View {
-    @EnvironmentObject var vm: CollageViewModel
+    @Environment(CollageViewModel.self) private var vm
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -586,7 +588,7 @@ private struct SlidesPanel: View {
 // MARK: - Style panel
 
 private struct StylePanel: View {
-    @EnvironmentObject var vm: CollageViewModel
+    @Environment(CollageViewModel.self) private var vm
 
     private let palette: [(String, Color)] = [
         ("Ink",       Color(hex: "0D0D0D")),
@@ -664,7 +666,7 @@ private struct StylePanel: View {
 // MARK: - Slide strip (iOS)
 
 private struct SlideStrip: View {
-    @EnvironmentObject var vm: CollageViewModel
+    @Environment(CollageViewModel.self) private var vm
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -700,7 +702,7 @@ private struct SlideStrip: View {
 // MARK: - Slide vertical stack (macOS left rail)
 
 private struct SlideStackVertical: View {
-    @EnvironmentObject var vm: CollageViewModel
+    @Environment(CollageViewModel.self) private var vm
     var body: some View {
         VStack(spacing: 8) {
             ForEach(Array(vm.document.slides.enumerated()), id: \.element.id) { idx, slide in

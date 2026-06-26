@@ -6,7 +6,7 @@ import PhotosUI
 // Renders one slide: background → grid regions (with their photos) → free layers.
 // When grid editing is active, divider + intersection handles sit on top.
 struct CollageCanvasView: View {
-    @EnvironmentObject var vm: CollageViewModel
+    @Environment(CollageViewModel.self) private var vm
     let canvasWidth: CGFloat
     let canvasHeight: CGFloat
 
@@ -14,7 +14,8 @@ struct CollageCanvasView: View {
     private var size: CGSize { CGSize(width: canvasWidth, height: canvasHeight) }
 
     var body: some View {
-        ZStack {
+        @Bindable var vm = vm
+        return ZStack {
             // Background — tapping the background (not dividers/cells/layers) deselects.
             vm.document.backgroundColor
                 .onTapGesture { vm.selection = .none }
@@ -232,10 +233,10 @@ private struct GridRegionView: View {
     }
 
     private func photoMagnifyGesture(_ photo: CellPhoto) -> some Gesture {
-        MagnificationGesture()
-            .onChanged { value in currentScale = lastScale * value }
+        MagnifyGesture()
+            .onChanged { value in currentScale = lastScale * value.magnification }
             .onEnded { value in
-                lastScale = max(0.5, min(6, lastScale * value))
+                lastScale = max(0.5, min(6, lastScale * value.magnification))
                 currentScale = lastScale
                 onPhotoTransform(dragOffset, currentScale)
             }
@@ -461,21 +462,21 @@ private struct LayerView: View {
     }
 
     private var pinchGesture: some Gesture {
-        MagnificationGesture()
-            .onChanged { v in scaleDelta = v }
+        MagnifyGesture()
+            .onChanged { v in scaleDelta = v.magnification }
             .onEnded { v in
                 onMutate { l in
-                    l.widthFrac = min(max(l.widthFrac * v, 0.05), 2.0)
+                    l.widthFrac = min(max(l.widthFrac * v.magnification, 0.05), 2.0)
                 }
                 scaleDelta = 1.0
             }
     }
 
     private var rotationGesture: some Gesture {
-        RotationGesture()
-            .onChanged { v in rotationDelta = v }
+        RotateGesture()
+            .onChanged { v in rotationDelta = v.rotation }
             .onEnded { v in
-                onMutate { l in l.rotation = l.rotation + v }
+                onMutate { l in l.rotation = l.rotation + v.rotation }
                 rotationDelta = .zero
             }
     }
